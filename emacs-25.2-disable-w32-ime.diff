@@ -1,0 +1,134 @@
+--- ./src/w32fns.c.orig	2017-02-03 19:25:45.000000000 +0900
++++ ./src/w32fns.c	2017-04-22 12:06:14.718627500 +0900
+@@ -78,6 +78,8 @@
+ extern const char *map_w32_filename (const char *, const char **);
+ extern char * w32_strerror (int error_no);
+ 
++static int ime_disabled = 0;
++
+ #ifndef IDC_HAND
+ #define IDC_HAND MAKEINTRESOURCE(32649)
+ #endif
+@@ -154,6 +156,8 @@
+ DECLARE_HANDLE(HMONITOR);
+ #endif
+ 
++typedef HIMC (WINAPI * ImmAssociateContextEx_Proc) (IN HWND wnd, IN HIMC context, IN DWORD flags);
++
+ typedef BOOL (WINAPI * TrackMouseEvent_Proc)
+   (IN OUT LPTRACKMOUSEEVENT lpEventTrack);
+ typedef LONG (WINAPI * ImmGetCompositionString_Proc)
+@@ -174,6 +178,8 @@
+ typedef BOOL (WINAPI * GetTitleBarInfo_Proc)
+   (IN HWND hwnd, OUT TITLEBAR_INFO* info);
+ 
++ImmAssociateContextEx_Proc associate_contextex_fn = NULL;
++
+ TrackMouseEvent_Proc track_mouse_event_fn = NULL;
+ ImmGetCompositionString_Proc get_composition_string_fn = NULL;
+ ImmGetContext_Proc get_ime_context_fn = NULL;
+@@ -4350,6 +4356,11 @@
+       goto dflt;
+ 
+     case WM_SETFOCUS:
++      if (ime_disabled)
++        associate_contextex_fn (hwnd, 0, 0);
++      else
++        associate_contextex_fn (hwnd, 0, IACE_DEFAULT);
++
+       dpyinfo->faked_key = 0;
+       reset_modifiers ();
+       register_hot_keys (hwnd);
+@@ -4594,6 +4605,10 @@
+       my_post_msg (&wmsg, hwnd, msg, wParam, lParam);
+       return 1;
+ 
++    case WM_EMACS_IMM_ASSOCIATE_CONTEXT:
++      associate_contextex_fn (hwnd, 0, lParam);
++      break;
++
+     default:
+       /* Check for messages registered at runtime. */
+       if (msg == msh_mousewheel)
+@@ -7296,6 +7311,47 @@
+ #endif /* WINDOWSNT */
+ 
+ 
++DEFUN ("disable-w32-ime", Fdisable_w32_ime, Sdisable_w32_ime,
++       0, 0, "", doc: /* Disable W32 IME.  */)
++  (void)
++{
++  struct frame *f = SELECTED_FRAME ();
++
++  if (f)
++    {
++      SendMessage (FRAME_W32_WINDOW (f), WM_EMACS_IMM_ASSOCIATE_CONTEXT,
++                   (WPARAM) 0, (LPARAM) 0);
++      ime_disabled = 1;
++    }
++
++  return Qnil;
++}
++
++DEFUN ("enable-w32-ime", Fenable_w32_ime, Senable_w32_ime,
++       0, 0, "", doc: /* Enable W32 IME.  */)
++  (void)
++{
++  struct frame *f = SELECTED_FRAME ();
++
++  if (f)
++    {
++      SendMessage (FRAME_W32_WINDOW (f), WM_EMACS_IMM_ASSOCIATE_CONTEXT,
++                   (WPARAM) 0, (LPARAM) IACE_DEFAULT);
++      ime_disabled = 0;
++    }
++
++  return Qnil;
++}
++DEFUN ("w32-ime-disabled-p", Fw32_ime_disabled_p, Sw32_ime_disabled_p,
++       0, 0, 0, doc: /* Return t if W32 IME is disabled.  */)
++  (void)
++{
++  if (ime_disabled)
++    return Qt;
++  else
++    return Qnil;
++}
++
+ /***********************************************************************
+ 			 w32 specialized functions
+  ***********************************************************************/
+@@ -9652,6 +9708,10 @@
+ 
+   /* W32 specific functions */
+ 
++  defsubr (&Sdisable_w32_ime);
++  defsubr (&Senable_w32_ime);
++  defsubr (&Sw32_ime_disabled_p);
++
+   defsubr (&Sw32_define_rgb_color);
+   defsubr (&Sw32_default_color_map);
+   defsubr (&Sw32_display_monitor_attributes_list);
+@@ -9924,6 +9984,11 @@
+ globals_of_w32fns (void)
+ {
+   HMODULE user32_lib = GetModuleHandle ("user32.dll");
++  {
++    HMODULE imm32_lib = GetModuleHandle ("imm32.dll");
++    associate_contextex_fn = (ImmAssociateContextEx_Proc)
++      GetProcAddress (imm32_lib, "ImmAssociateContextEx");
++  }
+   /*
+     TrackMouseEvent not available in all versions of Windows, so must load
+     it dynamically.  Do it once, here, instead of every time it is used.
+--- ./src/w32term.h.orig	2017-02-03 19:25:45.000000000 +0900
++++ ./src/w32term.h	2017-04-22 12:06:14.721634500 +0900
+@@ -636,6 +636,8 @@
+ #define UNICODE_NOCHAR 0xFFFF
+ #endif
+ 
++#define WM_EMACS_IMM_ASSOCIATE_CONTEXT (WM_USER+2400)
++
+ #define WM_EMACS_START                 (WM_USER + 1)
+ #define WM_EMACS_KILL                  (WM_EMACS_START + 0)
+ #define WM_EMACS_CREATEWINDOW          (WM_EMACS_START + 1)

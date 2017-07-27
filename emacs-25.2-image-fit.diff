@@ -1,0 +1,363 @@
+--- ./lisp/image-mode.el.orig	2017-02-03 19:25:44.000000000 +0900
++++ ./lisp/image-mode.el	2017-04-22 12:06:15.251042600 +0900
+@@ -680,9 +680,12 @@
+ 	 (edges (and (null image-transform-resize)
+ 		     (window-inside-pixel-edges
+ 		      (get-buffer-window (current-buffer)))))
++	 (type (image-type file-or-data nil data-p))
+ 	 (type (if (fboundp 'imagemagick-types)
+-		   'imagemagick
+-		 (image-type file-or-data nil data-p)))
++		   (if (assoc type image-fit-option-alist)
++		       type
++		     'imagemagick)
++		 type))
+ 	 (image (if (not edges)
+ 		    (create-image file-or-data type data-p)
+ 		  (create-image file-or-data type data-p
+--- ./lisp/image.el.orig	2017-02-03 19:25:44.000000000 +0900
++++ ./lisp/image.el	2017-04-22 12:06:15.254049100 +0900
+@@ -126,6 +126,15 @@
+   :type '(repeat (choice directory variable))
+   :initialize 'custom-initialize-delay)
+ 
++;;;###autoload
++(defcustom image-fit-option-alist nil
++  "Alist of (IMAGE-TYPE . FIT-OPTION) pairs used by image loader to specify image size.
++the FIT-OPTION is one of 'never, 'frame, 'width-or-height, 'width or 'height.
++Note: All image loaders are not supporting this `fit' capability.
++"
++  :type 'sexp
++  :initialize 'custom-initialize-default
++  :group 'image)
+ 
+ (defun image-load-path-for-library (library image &optional path no-error)
+   "Return a suitable search path for images used by LIBRARY.
+--- ./lisp/startup.el.orig	2017-02-03 19:25:44.000000000 +0900
++++ ./lisp/startup.el	2017-04-22 12:06:15.257048400 +0900
+@@ -1685,7 +1685,7 @@
+ (defun fancy-splash-head ()
+   "Insert the head part of the splash screen into the current buffer."
+   (let* ((image-file (fancy-splash-image-file))
+-	 (img (create-image image-file))
++	 (img (create-image image-file nil nil :fit 'never))
+ 	 (image-width (and img (car (image-size img))))
+ 	 (window-width (window-width)))
+     (when img
+--- ./src/image.c.orig	2017-02-03 19:25:45.000000000 +0900
++++ ./src/image.c	2017-04-22 12:06:15.261057100 +0900
+@@ -588,6 +588,102 @@
+   return p;
+ }
+ 
++Lisp_Object Qnever, Qwidth_or_height;
++
++static void image_error (const char *format, ...);
++static int get_fit_size(Lisp_Object opt, const struct frame *f,
++			int *w, int *h,
++			Lisp_Object image_type, int rise_error)
++{
++  if (NILP(opt))
++    return 0;
++
++  if (EQ(opt, Qnever)) {
++    *w = *h = 0;
++  } else if (EQ(opt, Qframe)) {
++    *w = FRAME_PIXEL_WIDTH (f) - FRAME_CONFIG_SCROLL_BAR_WIDTH (f) - FRAME_SCROLL_BAR_AREA_WIDTH (f);
++    *h = FRAME_PIXEL_HEIGHT (f);
++  } else if (EQ(opt, Qwidth_or_height)) {
++    *w = -(FRAME_PIXEL_WIDTH (f) - FRAME_CONFIG_SCROLL_BAR_WIDTH (f) - FRAME_SCROLL_BAR_AREA_WIDTH (f));
++    *h = -FRAME_PIXEL_HEIGHT (f);
++  } else if (EQ(opt, Qwidth)) {
++    *w = FRAME_PIXEL_WIDTH (f) - FRAME_CONFIG_SCROLL_BAR_WIDTH (f) - FRAME_SCROLL_BAR_AREA_WIDTH (f);
++    *h = 0;
++  } else if (EQ(opt, Qheight)) {
++    *w = 0;
++    *h = FRAME_PIXEL_HEIGHT (f);
++  } else {
++    if (rise_error)
++      xsignal2 (Qnil, build_string("unknown fit type"), opt);
++    else
++      image_error ("Invalid fit option for %s", image_type, Qnil);
++    return -1;
++  }
++  return 1;
++}
++
++static Lisp_Object image_spec_value (Lisp_Object, Lisp_Object, bool *);
++static int
++lookup_fit_size(Lisp_Object image_type,
++		const struct frame *f,
++		const struct image *img,
++		int *w, int *h,	int rise_error)
++{
++  Lisp_Object a, err, pred;
++  static const struct frame f_ = {0};
++  int w_, h_;
++  int r;
++
++//  assert(SYMBOLP (image_type));
++
++  if (img &&
++      (r = get_fit_size(image_spec_value(img->spec, QCfit, NULL),
++			f, w, h, image_type, rise_error)) != 0)
++    return r;
++
++#if 0
++  if (!CONSP (err = Vimage_fit_option_alist)) {
++    pred = Qconsp;
++    goto error;
++  }
++#endif
++
++  for (a = Vimage_fit_option_alist; !NILP(a); a = XCDR(a)) {
++    Lisp_Object o;
++    {
++      Lisp_Object e = XCAR(a);
++
++      if (!CONSP(err = e)) {
++	pred = Qconsp;
++	goto error;
++      }
++
++      if (!EQ(XCAR(e), image_type))
++	continue;
++      o = XCDR(e);
++    }
++
++    if (!SYMBOLP(err = o)) {
++      pred = Qsymbolp;
++      goto error;
++    }
++    if (f)
++      return get_fit_size(o, f, w, h, image_type, rise_error);
++    get_fit_size(o, &f_, &w_, &h_, image_type, rise_error);
++  }
++
++  /* not found */
++  if (f)
++    *w = *h = 0;
++  return 0;
++
++ error:
++  if (rise_error)
++    wrong_type_argument(pred, err);
++  else
++    image_error ("Invalid fit option for %s", image_type, Qnil);
++  return -1;
++}
+ 
+ /* Value is true if OBJECT is a valid Lisp image specification.  A
+    valid image specification is a list whose car is the symbol
+@@ -3159,6 +3255,8 @@
+ #define XImage xpm_XImage
+ #define Display xpm_Display
+ #define PIXEL_ALREADY_TYPEDEFED
++#undef close
++#undef open
+ #include "X11/xpm.h"
+ #undef FOR_MSW
+ #undef XColor
+@@ -6683,6 +6781,10 @@
+ #ifndef USE_CAIRO
+   XImagePtr ximg = NULL;
+ #endif
++  int fit_width = 0, fit_height = 0;
++
++  if (lookup_fit_size (Qjpeg, f, img, &fit_width, &fit_height, !0) < 0)
++    return 0;
+ 
+   /* Open the JPEG file.  */
+   specified_file = image_spec_value (img->spec, QCfile, NULL);
+@@ -6766,6 +6868,43 @@
+ 
+   jpeg_read_header (&mgr->cinfo, 1);
+ 
++#define JPEG8C_UNIT 8
++
++  if (fit_width > 0 && fit_height == 0) {
++    if (mgr->cinfo.image_width > fit_width) { /* fit to width */
++      mgr->cinfo.scale_num = ((double) fit_width / mgr->cinfo.image_width) * JPEG8C_UNIT;
++      mgr->cinfo.scale_denom = JPEG8C_UNIT;
++    }
++  } else if (fit_width == 0 && fit_height > 0) {
++    if (mgr->cinfo.image_height > fit_height) { /* fit to width */
++      mgr->cinfo.scale_num = ((double)fit_height / mgr->cinfo.image_height) * JPEG8C_UNIT;
++      mgr->cinfo.scale_denom = JPEG8C_UNIT;
++    }
++  } else if (fit_width > 0 && fit_height > 0) { /* fit to frame */
++    if (mgr->cinfo.image_width > fit_width ||
++	mgr->cinfo.image_height > fit_height) {
++      if ((double)fit_width / mgr->cinfo.image_width <
++	  (double)fit_height / mgr->cinfo.image_height) {
++	mgr->cinfo.scale_num = ((double)fit_width / mgr->cinfo.image_width) * JPEG8C_UNIT;
++      } else {
++	mgr->cinfo.scale_num = ((double)fit_height / mgr->cinfo.image_height) * JPEG8C_UNIT;
++	mgr->cinfo.scale_denom = JPEG8C_UNIT;
++      }
++    }
++  } else if (fit_width < 0 && fit_height < 0) { /* fit to width or height */
++    if (mgr->cinfo.image_width > -fit_width &&
++	mgr->cinfo.image_height > -fit_height) {
++      if ((double)-fit_width / mgr->cinfo.image_width >
++	  (double)-fit_height / mgr->cinfo.image_height) {
++	mgr->cinfo.scale_num = ((double)-fit_width / mgr->cinfo.image_width) * JPEG8C_UNIT;
++	mgr->cinfo.scale_denom = JPEG8C_UNIT;
++      } else {
++	mgr->cinfo.scale_num = ((double)-fit_height / mgr->cinfo.image_height) * JPEG8C_UNIT;
++	mgr->cinfo.scale_denom = JPEG8C_UNIT;
++      }
++    }
++  }
++
+   /* Customize decompression so that color quantization will be used.
+ 	 Start decompression.  */
+   mgr->cinfo.quantize_colors = 1;
+@@ -8835,6 +8974,12 @@
+ {
+   bool success_p = 0;
+   Lisp_Object file_name;
++  int w, h;
++
++#if 0
++  if (lookup_fit_size(Qjpeg, NULL, NULL, NULL, NULL, !0) < 0)
++    return 0;
++#endif
+ 
+   /* If IMG->spec specifies a file name, create a non-file spec from it.  */
+   file_name = image_spec_value (img->spec, QCfile, NULL);
+@@ -9023,6 +9168,7 @@
+ 	    (RsvgHandle *, const guchar *, gsize, GError **));
+ DEF_DLL_FN (gboolean, rsvg_handle_close, (RsvgHandle *, GError **));
+ DEF_DLL_FN (GdkPixbuf *, rsvg_handle_get_pixbuf, (RsvgHandle *));
++DEF_DLL_FN (void *, rsvg_handle_set_size_callback, (RsvgHandle *, RsvgSizeFunc, gpointer, GDestroyNotify));
+ DEF_DLL_FN (void, rsvg_handle_set_base_uri, (RsvgHandle *, const char *));
+ 
+ DEF_DLL_FN (int, gdk_pixbuf_get_width, (const GdkPixbuf *));
+@@ -9061,6 +9207,7 @@
+   LOAD_DLL_FN (library, rsvg_handle_write);
+   LOAD_DLL_FN (library, rsvg_handle_close);
+   LOAD_DLL_FN (library, rsvg_handle_get_pixbuf);
++  LOAD_DLL_FN (library, rsvg_handle_set_size_callback);
+   LOAD_DLL_FN (library, rsvg_handle_set_base_uri);
+ 
+   LOAD_DLL_FN (gdklib, gdk_pixbuf_get_width);
+@@ -9098,6 +9245,7 @@
+ #  undef rsvg_handle_close
+ #  undef rsvg_handle_get_dimensions
+ #  undef rsvg_handle_get_pixbuf
++#  undef rsvg_handle_set_size_callback
+ #  undef rsvg_handle_new
+ #  undef rsvg_handle_set_base_uri
+ #  undef rsvg_handle_write
+@@ -9116,6 +9264,7 @@
+ #  define rsvg_handle_close fn_rsvg_handle_close
+ #  define rsvg_handle_get_dimensions fn_rsvg_handle_get_dimensions
+ #  define rsvg_handle_get_pixbuf fn_rsvg_handle_get_pixbuf
++#  define rsvg_handle_set_size_callback fn_rsvg_handle_set_size_callback
+ #  define rsvg_handle_new fn_rsvg_handle_new
+ #  define rsvg_handle_set_base_uri fn_rsvg_handle_set_base_uri
+ #  define rsvg_handle_write fn_rsvg_handle_write
+@@ -9177,6 +9326,48 @@
+   return success_p;
+ }
+ 
++static void  rsvg_size_callback  (gint *width,
++				  gint *height,
++				  gpointer user_data)
++{
++  int *fit_size = (int *)user_data;
++
++  /*
++   * 0, 0: never
++   * 0, +: fit to height
++   * +, 0: fit to width
++   * +, +: fit to frame
++   * -, -: fit to width or height
++   */
++  if (fit_size[0] > 0 && fit_size[1] == 0) {
++    *height *= (double)fit_size[0] / *width;
++    *width = (gint)fit_size[0];
++  } else if (fit_size[0] == 0 && fit_size[1] > 0) {
++    *width *= (double)fit_size[1] / *height;
++    *height = (gint)fit_size[1];
++  } else if (fit_size[0] > 0 && fit_size[1] > 0) { /* fit to frame */
++    if ((double)fit_size[0] / *width < (double)fit_size[1] / *height) {
++      /* fit to width */
++      *height *= (double)fit_size[0] / *width;
++      *width = (gint)fit_size[0];
++    } else {
++      /* fit to height */
++      *width *= (double)fit_size[1] / *height;
++      *height = (gint)fit_size[1];
++    }
++  } else if (fit_size[0] < 0 && fit_size[1] < 0) { /* fit to width or height */
++    if ((double)-fit_size[0] / *width < (double)-fit_size[1] / *height) {
++      /* fit to height */
++      *width *= (double)-fit_size[1] / *height;
++      *height = (gint)-fit_size[1];
++    } else {
++      /* fit to width */
++      *height *= (double)-fit_size[0] / *width;
++      *width = (gint)-fit_size[0];
++    }
++  }
++}
++
+ /* svg_load_image is a helper function for svg_load, which does the
+    actual loading given contents and size, apart from frame and image
+    structures, passed from svg_load.
+@@ -9199,6 +9390,10 @@
+   int height;
+   const guint8 *pixels;
+   int rowstride;
++  int fit_size[2] = {0, 0};
++
++  if (lookup_fit_size(Qsvg, f, img, fit_size, fit_size+1, 0) < 0)
++    return 0;
+ 
+ #if ! GLIB_CHECK_VERSION (2, 36, 0)
+   /* g_type_init is a glib function that must be called prior to
+@@ -9215,6 +9410,9 @@
+   if (filename)
+     rsvg_handle_set_base_uri(rsvg_handle, filename);
+ 
++  if (fit_size[0] || fit_size[1])
++    rsvg_handle_set_size_callback(rsvg_handle, rsvg_size_callback, fit_size, NULL);
++
+   /* Parse the contents argument and fill in the rsvg_handle.  */
+   rsvg_handle_write (rsvg_handle, contents, size, &err);
+   if (err) goto rsvg_error;
+@@ -9818,6 +10016,7 @@
+   DEFSYM (QCmatrix, ":matrix");
+   DEFSYM (QCcolor_adjustment, ":color-adjustment");
+   DEFSYM (QCmask, ":mask");
++  DEFSYM (QCfit, ":fit");
+ 
+   /* Other symbols.  */
+   DEFSYM (Qlaplace, "laplace");
+@@ -9868,12 +10067,24 @@
+ 	);
+ #endif
+ 
++  DEFVAR_LISP ("image-fit-option-alist", Vimage_fit_option_alist,
++    doc: /* Alist of (IMAGE-TYPE . FIT-OPTION) pairs used by image loader to specify image size.
++the FIT-OPTION is one of 'never, 'frame, 'width-or-height, 'width or 'height.
++Note: All image loaders are not supporting this `fit' capability. */);
++  Vimage_fit_option_alist = Qnil;
++
+   DEFSYM (Qpbm, "pbm");
+   ADD_IMAGE_TYPE (Qpbm);
+ 
+   DEFSYM (Qxbm, "xbm");
+   ADD_IMAGE_TYPE (Qxbm);
+ 
++  Qnever = intern_c_string("never");
++  staticpro (&Qnever);
++  Qwidth_or_height = intern_c_string("width-or-height");
++  staticpro (&Qwidth_or_height);
++
++
+ #if defined (HAVE_XPM) || defined (HAVE_NS)
+   DEFSYM (Qxpm, "xpm");
+   ADD_IMAGE_TYPE (Qxpm);

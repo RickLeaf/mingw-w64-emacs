@@ -323,28 +323,29 @@
      ;; If the PWD environment variable isn't accurate, delete it.
      (let ((pwd (getenv "PWD")))
        (and (stringp pwd)
---- ./src/frame.c.orig	2017-04-20 23:50:42.000000000 +0900
-+++ ./src/frame.c	2017-04-22 12:06:17.125633500 +0900
-@@ -3073,6 +3073,9 @@
-   {"alpha",			SYMBOL_INDEX (Qalpha)},
-   {"sticky",			SYMBOL_INDEX (Qsticky)},
-   {"tool-bar-position",		SYMBOL_INDEX (Qtool_bar_position)},
+--- ./src/frame.c.orig	2018-05-25 16:53:30.000000000 +0800
++++ ./src/frame.c	2018-06-20 12:23:41.800123600 +0800
+@@ -3585,6 +3585,9 @@ static const struct frame_parm_table fra
+   {"ns-appearance",		SYMBOL_INDEX (Qns_appearance)},
+   {"ns-transparent-titlebar",	SYMBOL_INDEX (Qns_transparent_titlebar)},
+ #endif
 +#ifdef USE_W32_IME
 +  {"ime-font",			SYMBOL_INDEX (Qime_font)},
 +#endif /* USE_W32_IME */
  };
  
  #ifdef HAVE_WINDOW_SYSTEM
-@@ -5024,6 +5027,9 @@
-   DEFSYM (Qvertical_scroll_bars, "vertical-scroll-bars");
-   DEFSYM (Qvisibility, "visibility");
-   DEFSYM (Qwait_for_wm, "wait-for-wm");
+@@ -5768,6 +5771,9 @@ syms_of_frame (void)
+   DEFSYM (Qtop_only, "top-only");
+   DEFSYM (Qiconify_top_level, "iconify-top-level");
+   DEFSYM (Qmake_invisible, "make-invisible");
 +#ifdef USE_W32_IME
 +  DEFSYM (Qime_font, "ime-font");
 +#endif /* USE_W32_IME */
  
    {
      int i;
+
 --- ./src/keyboard.c.orig	2017-04-20 23:50:42.000000000 +0900
 +++ ./src/keyboard.c	2017-04-22 12:06:17.126636000 +0900
 @@ -4690,7 +4690,11 @@
@@ -416,9 +417,9 @@
    unread_switch_frame = delayed_switch_frame;
    unbind_to (count, Qnil);
  
---- ./src/w32fns.c.orig	2017-02-03 19:25:45.000000000 +0900
-+++ ./src/w32fns.c	2017-04-22 12:06:17.138067400 +0900
-@@ -52,6 +52,11 @@
+--- ./src/w32fns.c.orig	2018-04-23 22:18:03.000000000 +0800
++++ ./src/w32fns.c	2018-06-20 12:41:16.278539400 +0800
+@@ -56,6 +56,11 @@ along with GNU Emacs.  If not, see <http
  #include "w32.h"
  #endif
  
@@ -427,10 +428,10 @@
 +#include "w32font.h"
 +#endif
 +
+ #include <basetyps.h>
+ #include <unknwn.h>
  #include <commctrl.h>
- #include <commdlg.h>
- #include <shellapi.h>
-@@ -82,6 +87,45 @@
+@@ -83,6 +88,45 @@ extern const char *map_w32_filename (con
  #define IDC_HAND MAKEINTRESOURCE(32649)
  #endif
  
@@ -476,7 +477,7 @@
  /* Prefix for system colors.  */
  #define SYSTEM_COLOR_PREFIX "System"
  #define SYSTEM_COLOR_PREFIX_LEN (sizeof (SYSTEM_COLOR_PREFIX) - 1)
-@@ -156,12 +200,14 @@
+@@ -157,12 +201,14 @@ DECLARE_HANDLE(HMONITOR);
  
  typedef BOOL (WINAPI * TrackMouseEvent_Proc)
    (IN OUT LPTRACKMOUSEEVENT lpEventTrack);
@@ -491,7 +492,7 @@
  typedef HMONITOR (WINAPI * MonitorFromPoint_Proc) (IN POINT pt, IN DWORD flags);
  typedef BOOL (WINAPI * GetMonitorInfo_Proc)
    (IN HMONITOR monitor, OUT struct MONITOR_INFO* info);
-@@ -175,10 +221,12 @@
+@@ -176,10 +222,12 @@ typedef BOOL (WINAPI * GetTitleBarInfo_P
    (IN HWND hwnd, OUT TITLEBAR_INFO* info);
  
  TrackMouseEvent_Proc track_mouse_event_fn = NULL;
@@ -504,9 +505,9 @@
  MonitorFromPoint_Proc monitor_from_point_fn = NULL;
  GetMonitorInfo_Proc get_monitor_info_fn = NULL;
  MonitorFromWindow_Proc monitor_from_window_fn = NULL;
-@@ -191,8 +239,13 @@
+@@ -188,8 +236,13 @@ GetTitleBarInfo_Proc get_title_bar_info_
+ 
  extern AppendMenuW_Proc unicode_append_menu;
- #endif /* NTGUI_UNICODE */
  
 +#ifdef USE_W32_IME
 +/* Flag for indicating in conversion.  */
@@ -518,7 +519,7 @@
  
  /* W95 mousewheel handler */
  unsigned int msh_mousewheel = 0;
-@@ -759,6 +812,17 @@
+@@ -793,6 +846,17 @@ w32_color_map_lookup (const char *colorn
    return ret;
  }
  
@@ -536,16 +537,16 @@
  
  static void
  add_system_logical_colors_to_map (Lisp_Object *system_colors)
-@@ -2042,6 +2106,8 @@
+@@ -2382,6 +2446,8 @@ w32_createwindow (struct frame *f, int *
  
    if (hwnd)
      {
 +      static int initialized = 0;
 +
-       SetWindowLong (hwnd, WND_FONTWIDTH_INDEX, FRAME_COLUMN_WIDTH (f));
-       SetWindowLong (hwnd, WND_LINEHEIGHT_INDEX, FRAME_LINE_HEIGHT (f));
-       SetWindowLong (hwnd, WND_BORDER_INDEX, FRAME_INTERNAL_BORDER_WIDTH (f));
-@@ -2049,6 +2115,12 @@
+       if (FRAME_SKIP_TASKBAR (f))
+ 	SetWindowLong (hwnd, GWL_EXSTYLE,
+ 		       GetWindowLong (hwnd, GWL_EXSTYLE) | WS_EX_NOACTIVATE);
+@@ -2393,6 +2459,12 @@ w32_createwindow (struct frame *f, int *
        SetWindowLong (hwnd, WND_HSCROLLBAR_INDEX, FRAME_SCROLL_BAR_AREA_HEIGHT (f));
        SetWindowLong (hwnd, WND_BACKGROUND_INDEX, FRAME_BACKGROUND_PIXEL (f));
  
@@ -558,7 +559,7 @@
        /* Enable drag-n-drop.  */
        DragAcceptFiles (hwnd, TRUE);
  
-@@ -3702,6 +3774,24 @@
+@@ -4413,6 +4485,25 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARA
  	  TranslateMessage (&windows_msg);
  	  goto dflt;
  	}
@@ -580,10 +581,11 @@
 +	    }
 +	}
 +#endif
- 
++
        /* Fall through */
+       FALLTHROUGH;
  
-@@ -3721,6 +3811,7 @@
+@@ -4432,6 +4523,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARA
  				w32_get_key_modifiers (wParam, lParam));
        break;
  
@@ -591,7 +593,7 @@
      case WM_UNICHAR:
        /* WM_UNICHAR looks promising from the docs, but the exact
  	 circumstances in which TranslateMessage sends it is one of those
-@@ -3845,6 +3936,7 @@
+@@ -4556,6 +4648,7 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARA
      case WM_IME_ENDCOMPOSITION:
        ignore_ime_char = 0;
        goto dflt;
@@ -599,7 +601,7 @@
  
        /* Simulate middle mouse button events when left and right buttons
  	 are used together, but only if user has two button mouse. */
-@@ -4593,8 +4685,87 @@
+@@ -5374,8 +5467,87 @@ w32_wnd_proc (HWND hwnd, UINT msg, WPARA
      case WM_EMACS_FILENOTIFY:
        my_post_msg (&wmsg, hwnd, msg, wParam, lParam);
        return 1;
@@ -687,8 +689,8 @@
        /* Check for messages registered at runtime. */
        if (msg == msh_mousewheel)
  	{
-@@ -4883,6 +5054,10 @@
-       x_set_frame_parameters (f, Fcons (Fcons (Qfont_param, font_param), Qnil));
+@@ -5666,6 +5838,10 @@ x_default_font_parameter (struct frame *
+ 					Qnil));
      }
    x_default_parameter (f, parms, Qfont, font, "font", "Font", RES_TYPE_STRING);
 +#ifdef USE_W32_IME
@@ -698,11 +700,11 @@
  }
  
  DEFUN ("x-create-frame", Fx_create_frame, Sx_create_frame,
-@@ -7297,6 +7472,1017 @@
+@@ -6778,6 +6954,1017 @@ If TERMINAL is omitted or nil, that stan
  
  
  /***********************************************************************
-+ 			  Input Method Editor
++ * + 			  Input Method Editor
 + ***********************************************************************/
 +#ifdef USE_W32_IME
 +BOOL fIME = FALSE;
@@ -1713,10 +1715,10 @@
 +
 +
 +/***********************************************************************
- 			 w32 specialized functions
+ 			   Window properties
   ***********************************************************************/
  
-@@ -9294,6 +10480,9 @@
+@@ -10359,6 +11546,9 @@ frame_parm_handler w32_frame_parm_handle
    x_set_fullscreen,
    x_set_font_backend,
    x_set_alpha,
@@ -1725,8 +1727,8 @@
 +#endif /* USE_W32_IME */ 
    0, /* x_set_sticky */
    0, /* x_set_tool_bar_position */
- };
-@@ -9307,6 +10496,10 @@
+   0, /* x_set_inhibit_double_buffering */
+@@ -10381,6 +11571,10 @@ syms_of_w32fns (void)
    w32_visible_system_caret_hwnd = NULL;
  
    DEFSYM (Qundefined_color, "undefined-color");
@@ -1737,7 +1739,7 @@
    DEFSYM (Qcancel_timer, "cancel-timer");
    DEFSYM (Qhyper, "hyper");
    DEFSYM (Qsuper, "super");
-@@ -9618,6 +10811,27 @@
+@@ -10710,6 +11904,27 @@ Default is nil.
  This variable has effect only on Windows Vista and later.  */);
    w32_disable_new_uniscribe_apis = 0;
  
@@ -1762,10 +1764,10 @@
 +  Vw32_ime_composition_window = Qnil;
 +#endif /* USE_W32_IME */
 +
- #if 0 /* TODO: Port to W32 */
-   defsubr (&Sx_change_window_property);
-   defsubr (&Sx_delete_window_property);
-@@ -9670,6 +10884,18 @@
+   DEFVAR_LISP ("w32-tooltip-extra-pixels",
+ 	       Vw32_tooltip_extra_pixels,
+ 	       doc: /* Number of pixels added after tooltip text.
+@@ -10781,6 +11996,18 @@ tip frame.  */);
    defsubr (&Sw32_notification_close);
  #endif
  
@@ -1784,7 +1786,7 @@
  #ifdef WINDOWSNT
    defsubr (&Sfile_system_info);
    defsubr (&Sdefault_printer_name);
-@@ -9942,6 +11168,7 @@
+@@ -11056,6 +12283,7 @@ globals_of_w32fns (void)
    get_title_bar_info_fn = (GetTitleBarInfo_Proc)
      GetProcAddress (user32_lib, "GetTitleBarInfo");
  
@@ -1792,7 +1794,7 @@
    {
      HMODULE imm32_lib = GetModuleHandle ("imm32.dll");
      get_composition_string_fn = (ImmGetCompositionString_Proc)
-@@ -9953,6 +11180,7 @@
+@@ -11067,6 +12295,7 @@ globals_of_w32fns (void)
      set_ime_composition_window_fn = (ImmSetCompositionWindow_Proc)
        GetProcAddress (imm32_lib, "ImmSetCompositionWindow");
    }
@@ -1800,6 +1802,7 @@
  
    except_code = 0;
    except_addr = 0;
+
 --- ./src/w32font.c.orig	2017-02-03 19:25:45.000000000 +0900
 +++ ./src/w32font.c	2017-04-22 12:06:17.142971800 +0900
 @@ -52,7 +52,10 @@

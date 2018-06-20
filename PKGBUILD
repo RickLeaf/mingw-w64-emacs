@@ -4,7 +4,7 @@
 _realname=emacs
 pkgbase=mingw-w64-${_realname}
 pkgname="${MINGW_PACKAGE_PREFIX}-${_realname}"
-pkgver=25.3
+pkgver=26.1
 pkgrel=1
 pkgdesc="The extensible, customizable, self-documenting, real-time display editor (mingw-w64)"
 url="https://www.gnu.org/software/${_realname}/"
@@ -38,23 +38,22 @@ source=("https://ftp.gnu.org/gnu/${_realname}/${_realname}-${pkgver}.tar.xz"{,.s
         'image-fit.diff'
         'ImmDisableIME.diff'
         'mingw-imagemagick.diff'
-        'w32-ime.diff'
-        )
-sha256sums=('253ac5e7075e594549b83fd9ec116a9dc37294d415e2f21f8ee109829307c00b'
+        'w32-ime.diff')
+sha256sums=('1cf4fc240cd77c25309d15e18593789c8dbfba5c2b44d8f77c886542300fd32c'
             'SKIP'
             '4571d45ec26fd556e73a70bb0ab0a2a8fa1efc5e3b3c5b472ab68bb7dc9bf52c'
             '24b2201aa2e965c759cfc9539aa4b610d97f1d0240d9888e335da490b87b84b5'
-            '351a59dcda54a2971b12a9ae47033e2d8e4312d4ddca5029f952718ddcfff9af'
-            'f3cef8a7bd94bcbc96e7e969d894456255def79e0b573666129cf54f121e20d5'
+            '3c4315a568d8d0a74d76d8d00fd5196d22b9322cef92a82e9783f77b1ea76318'
+            '033fae53616b9e24c33e41db95816690077c8f7355b93ccaf3cc1af26914f615'
             '4e4b154285bd324aed8ae54feb993fc56a6eb95fbb38beeec28d3c9703928b18'
-            'b62774d6411d8cf6ba6f73b0f5ef51804f7b387305c740b093db6cb1fc76139f'
+            'b44244aa035a53d32f9e954f898d7955bfa37961be3f1989373d11e98a60ce44'
             'd690f8a1656f025390716736b508391e4e1ea4b0e4633a8901689edb60423f61'
             '2d6344e79f20000f21bd0ed329a978e0bcf9130080b444c60b1e60e742f37573'
-            '71b4c1320420a083271d930a973e232a1f5f9ca6f6ff4c3e14be6ca0c0d82d8d')
+            '8239a2c0b4452e713f7490210860d8b85d7df99069f8fde0fc9c9df19cbaa702')
 
 prepare() {
   cd "${_realname}-${pkgver}"
-  #patch --binary --forward -p0 < "${srcdir}/image.c.diff"
+  patch --binary --forward -p0 < "${srcdir}/image.c.diff"
   patch --binary --forward -p0 < "${srcdir}/lread.c.diff"
   patch --binary --forward -p0 < "${srcdir}/mingw-imagemagick.diff"
   patch --binary --forward -p0 < "${srcdir}/w32-ime.diff"

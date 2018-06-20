@@ -1,15 +1,15 @@
---- ./configure.ac.orig	2017-02-03 23:34:30.000000000 +0900
-+++ ./configure.ac	2017-04-22 12:06:13.236144500 +0900
-@@ -355,6 +355,8 @@
- OPTION_DEFAULT_ON([zlib],[don't compile with zlib decompression support])
+--- ./configure.ac.orig	2018-04-23 22:17:33.000000000 +0800
++++ ./configure.ac	2018-06-20 13:33:55.610161600 +0800
+@@ -379,6 +379,8 @@ OPTION_DEFAULT_ON([zlib],[don't compile
  OPTION_DEFAULT_OFF([modules],[compile with dynamic modules support])
+ OPTION_DEFAULT_ON([threads],[don't compile with elisp threading support])
  
 +OPTION_DEFAULT_ON([cmigemo], [don't compile with CMIGEMO support])
 +
  AC_ARG_WITH([file-notification],[AS_HELP_STRING([--with-file-notification=LIB],
   [use a file notification library (LIB one of: yes, inotify, kqueue, gfile, w32, no)])],
   [ case "${withval}" in
-@@ -3455,6 +3457,15 @@
+@@ -3618,6 +3620,15 @@ fi
  AC_SUBST(LIBPNG)
  AC_SUBST(PNG_CFLAGS)
  
@@ -25,23 +25,24 @@
  ### Use -ltiff if available, unless '--with-tiff=no'.
  ### mingw32 doesn't use -ltiff, since it loads the library dynamically.
  HAVE_TIFF=no
-@@ -5269,7 +5280,7 @@
+@@ -5363,7 +5374,7 @@ optsep=
  emacs_config_features=
  for opt in XAW3D XPM JPEG TIFF GIF PNG RSVG CAIRO IMAGEMAGICK SOUND GPM DBUS \
    GCONF GSETTINGS NOTIFY ACL LIBSELINUX GNUTLS LIBXML2 FREETYPE M17N_FLT \
--  LIBOTF XFT ZLIB TOOLKIT_SCROLL_BARS X_TOOLKIT X11 NS MODULES \
-+  LIBOTF XFT ZLIB CMIGEMO TOOLKIT_SCROLL_BARS X_TOOLKIT X11 NS MODULES \
-   XWIDGETS; do
+-  LIBOTF XFT ZLIB TOOLKIT_SCROLL_BARS X_TOOLKIT OLDXMENU X11 NS MODULES \
++  LIBOTF XFT ZLIB CMIGEMO TOOLKIT_SCROLL_BARS X_TOOLKIT OLDXMENU X11 NS MODULES \
+   THREADS XWIDGETS LIBSYSTEMD CANNOT_DUMP LCMS2; do
  
      case $opt in
-@@ -5319,6 +5330,7 @@
-   Does Emacs use -lxft?                                   ${HAVE_XFT}
+@@ -5417,6 +5428,7 @@ AS_ECHO(["  Does Emacs use -lXaw3d?
+   Does Emacs use -lsystemd?                               ${HAVE_LIBSYSTEMD}
    Does Emacs directly use zlib?                           ${HAVE_ZLIB}
    Does Emacs have dynamic modules support?                ${HAVE_MODULES}
 +  Does Emacs use a cmigemo library?                       ${HAVE_CMIGEMO}
    Does Emacs use toolkit scroll bars?                     ${USE_TOOLKIT_SCROLL_BARS}
    Does Emacs support Xwidgets (requires gtk3)?            ${HAVE_XWIDGETS}
- "])
+   Does Emacs have threading support in lisp?              ${threads_enabled}
+
 --- /dev/null	2017-04-22 12:06:13.000000000 +0900
 +++ ./site-lisp/cmigemo.el	2017-04-22 12:06:13.241155100 +0900
 @@ -0,0 +1,859 @@
@@ -1388,14 +1389,14 @@
        keys_of_casefiddle ();
        keys_of_cmds ();
        keys_of_buffer ();
---- ./src/Makefile.in.orig	2017-02-03 19:25:44.000000000 +0900
-+++ ./src/Makefile.in	2017-04-22 12:06:13.247168800 +0900
-@@ -397,7 +397,7 @@
+--- ./src/Makefile.in.orig	2018-04-23 22:18:03.000000000 +0800
++++ ./src/Makefile.in	2018-06-20 13:24:09.778101100 +0800
+@@ -393,7 +393,7 @@ base_obj = dispnew.o frame.o scroll.o xd
  	region-cache.o sound.o atimer.o \
- 	doprnt.o intervals.o textprop.o composite.o xml.o $(NOTIFY_OBJ) \
+ 	doprnt.o intervals.o textprop.o composite.o xml.o lcms.o $(NOTIFY_OBJ) \
  	$(XWIDGETS_OBJ) \
 -	profiler.o decompress.o \
 +	profiler.o decompress.o cmigemo.o \
+ 	thread.o systhread.o \
+ 	$(if $(HYBRID_MALLOC),sheap.o) \
  	$(MSDOS_OBJ) $(MSDOS_X_OBJ) $(NS_OBJ) $(CYGWIN_OBJ) $(FONT_OBJ) \
- 	$(W32_OBJ) $(WINDOW_SYSTEM_OBJ) $(XGSELOBJ)
- obj = $(base_obj) $(NS_OBJC_OBJ)

@@ -1,6 +1,6 @@
---- ./configure.ac.orig	2017-02-03 23:34:30.000000000 +0900
-+++ ./configure.ac	2017-04-22 12:06:14.179450300 +0900
-@@ -2382,7 +2382,7 @@
+--- ./configure.ac.orig	2018-04-23 22:17:33.000000000 +0800
++++ ./configure.ac	2018-06-20 13:20:23.998591900 +0800
+@@ -2498,7 +2498,7 @@ fi
  
  ### Use -lrsvg-2 if available, unless '--with-rsvg=no' is specified.
  HAVE_RSVG=no

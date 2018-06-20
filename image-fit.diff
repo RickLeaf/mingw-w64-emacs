@@ -44,9 +44,9 @@
  	 (image-width (and img (car (image-size img))))
  	 (window-width (window-width)))
      (when img
---- ./src/image.c.orig	2017-02-03 19:25:45.000000000 +0900
-+++ ./src/image.c	2017-04-22 12:06:15.261057100 +0900
-@@ -588,6 +588,102 @@
+--- ./src/image.c.orig	2018-04-23 22:17:51.000000000 +0800
++++ ./src/image.c	2018-06-20 13:08:19.414577200 +0800
+@@ -594,6 +594,102 @@ define_image_type (struct image_type *ty
    return p;
  }
  
@@ -149,15 +149,15 @@
  
  /* Value is true if OBJECT is a valid Lisp image specification.  A
     valid image specification is a list whose car is the symbol
-@@ -3159,6 +3255,8 @@
- #define XImage xpm_XImage
- #define Display xpm_Display
- #define PIXEL_ALREADY_TYPEDEFED
+@@ -3181,6 +3277,8 @@ static bool xpm_load (struct frame *f, s
+ #else  /* not CYGWIN */
+ #include "X11/xpm.h"
+ #endif	/* not CYGWIN */
 +#undef close
 +#undef open
- #include "X11/xpm.h"
  #undef FOR_MSW
  #undef XColor
+ #undef XImage
 @@ -6683,6 +6781,10 @@
  #ifndef USE_CAIRO
    XImagePtr ximg = NULL;
@@ -167,9 +167,9 @@
 +  if (lookup_fit_size (Qjpeg, f, img, &fit_width, &fit_height, !0) < 0)
 +    return 0;
  
-   /* Open the JPEG file.  */
    specified_file = image_spec_value (img->spec, QCfile, NULL);
-@@ -6766,6 +6868,43 @@
+ 
+@@ -6787,6 +6889,43 @@ jpeg_load_body (struct frame *f, struct
  
    jpeg_read_header (&mgr->cinfo, 1);
  
@@ -213,20 +213,21 @@
    /* Customize decompression so that color quantization will be used.
  	 Start decompression.  */
    mgr->cinfo.quantize_colors = 1;
-@@ -8835,6 +8974,12 @@
- {
+@@ -8892,6 +9031,13 @@ imagemagick_load (struct frame *f, struc
    bool success_p = 0;
    Lisp_Object file_name;
+ 
 +  int w, h;
 +
 +#if 0
 +  if (lookup_fit_size(Qjpeg, NULL, NULL, NULL, NULL, !0) < 0)
 +    return 0;
 +#endif
- 
++
    /* If IMG->spec specifies a file name, create a non-file spec from it.  */
    file_name = image_spec_value (img->spec, QCfile, NULL);
-@@ -9023,6 +9168,7 @@
+   if (STRINGP (file_name))
+@@ -9082,6 +9228,7 @@ DEF_DLL_FN (gboolean, rsvg_handle_write,
  	    (RsvgHandle *, const guchar *, gsize, GError **));
  DEF_DLL_FN (gboolean, rsvg_handle_close, (RsvgHandle *, GError **));
  DEF_DLL_FN (GdkPixbuf *, rsvg_handle_get_pixbuf, (RsvgHandle *));
@@ -234,7 +235,7 @@
  DEF_DLL_FN (void, rsvg_handle_set_base_uri, (RsvgHandle *, const char *));
  
  DEF_DLL_FN (int, gdk_pixbuf_get_width, (const GdkPixbuf *));
-@@ -9061,6 +9207,7 @@
+@@ -9120,6 +9267,7 @@ init_svg_functions (void)
    LOAD_DLL_FN (library, rsvg_handle_write);
    LOAD_DLL_FN (library, rsvg_handle_close);
    LOAD_DLL_FN (library, rsvg_handle_get_pixbuf);
@@ -242,7 +243,7 @@
    LOAD_DLL_FN (library, rsvg_handle_set_base_uri);
  
    LOAD_DLL_FN (gdklib, gdk_pixbuf_get_width);
-@@ -9098,6 +9245,7 @@
+@@ -9157,6 +9305,7 @@ init_svg_functions (void)
  #  undef rsvg_handle_close
  #  undef rsvg_handle_get_dimensions
  #  undef rsvg_handle_get_pixbuf
@@ -250,7 +251,7 @@
  #  undef rsvg_handle_new
  #  undef rsvg_handle_set_base_uri
  #  undef rsvg_handle_write
-@@ -9116,6 +9264,7 @@
+@@ -9177,6 +9326,7 @@ init_svg_functions (void)
  #  define rsvg_handle_close fn_rsvg_handle_close
  #  define rsvg_handle_get_dimensions fn_rsvg_handle_get_dimensions
  #  define rsvg_handle_get_pixbuf fn_rsvg_handle_get_pixbuf
@@ -258,7 +259,7 @@
  #  define rsvg_handle_new fn_rsvg_handle_new
  #  define rsvg_handle_set_base_uri fn_rsvg_handle_set_base_uri
  #  define rsvg_handle_write fn_rsvg_handle_write
-@@ -9177,6 +9326,48 @@
+@@ -9238,6 +9388,48 @@ svg_load (struct frame *f, struct image
    return success_p;
  }
  
@@ -304,21 +305,22 @@
 +  }
 +}
 +
- /* svg_load_image is a helper function for svg_load, which does the
-    actual loading given contents and size, apart from frame and image
-    structures, passed from svg_load.
-@@ -9199,6 +9390,10 @@
-   int height;
+ /* Load frame F and image IMG.  CONTENTS contains the SVG XML data to
+    be parsed, SIZE is its size, and FILENAME is the name of the SVG
+    file being loaded.
+@@ -9258,6 +9450,11 @@ svg_load_image (struct frame *f, struct
    const guint8 *pixels;
    int rowstride;
+ 
 +  int fit_size[2] = {0, 0};
 +
 +  if (lookup_fit_size(Qsvg, f, img, fit_size, fit_size+1, 0) < 0)
 +    return 0;
- 
++
  #if ! GLIB_CHECK_VERSION (2, 36, 0)
    /* g_type_init is a glib function that must be called prior to
-@@ -9215,6 +9410,9 @@
+      using gnome type library functions (obsolete since 2.36.0).  */
+@@ -9273,6 +9470,9 @@ svg_load_image (struct frame *f, struct
    if (filename)
      rsvg_handle_set_base_uri(rsvg_handle, filename);
  
@@ -326,17 +328,17 @@
 +    rsvg_handle_set_size_callback(rsvg_handle, rsvg_size_callback, fit_size, NULL);
 +
    /* Parse the contents argument and fill in the rsvg_handle.  */
-   rsvg_handle_write (rsvg_handle, contents, size, &err);
+   rsvg_handle_write (rsvg_handle, (unsigned char *) contents, size, &err);
    if (err) goto rsvg_error;
-@@ -9818,6 +10016,7 @@
-   DEFSYM (QCmatrix, ":matrix");
+@@ -9875,6 +10075,7 @@ non-numeric, there is no explicit limit
+   DEFSYM (QCscale, ":scale");
    DEFSYM (QCcolor_adjustment, ":color-adjustment");
    DEFSYM (QCmask, ":mask");
 +  DEFSYM (QCfit, ":fit");
  
    /* Other symbols.  */
    DEFSYM (Qlaplace, "laplace");
-@@ -9868,12 +10067,24 @@
+@@ -9925,12 +10126,23 @@ non-numeric, there is no explicit limit
  	);
  #endif
  
@@ -356,7 +358,6 @@
 +  staticpro (&Qnever);
 +  Qwidth_or_height = intern_c_string("width-or-height");
 +  staticpro (&Qwidth_or_height);
-+
 +
  #if defined (HAVE_XPM) || defined (HAVE_NS)
    DEFSYM (Qxpm, "xpm");

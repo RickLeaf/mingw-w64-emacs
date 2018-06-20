@@ -4,7 +4,7 @@
 _realname=emacs
 pkgbase=mingw-w64-${_realname}
 pkgname="${MINGW_PACKAGE_PREFIX}-${_realname}"
-pkgver=25.2
+pkgver=25.3
 pkgrel=1
 pkgdesc="The extensible, customizable, self-documenting, real-time display editor (mingw-w64)"
 url="https://www.gnu.org/software/${_realname}/"
@@ -32,15 +32,15 @@ options=('strip' '!zipman')
 source=("https://ftp.gnu.org/gnu/${_realname}/${_realname}-${pkgver}.tar.xz"{,.sig}
         'image.c.diff'
         'lread.c.diff'
-        'emacs-25.2-cmigemo.diff'
-        'emacs-25.2-cygwin-rsvg.diff'
-        'emacs-25.2-disable-w32-ime.diff'
-        'emacs-25.2-image-fit.diff'
-        'emacs-25.2-ImmDisableIME.diff'
-        'emacs-25.2-mingw-imagemagick.diff'
-        'emacs-25.2-w32-ime.diff'
+        'cmigemo.diff'
+        'cygwin-rsvg.diff'
+        'disable-w32-ime.diff'
+        'image-fit.diff'
+        'ImmDisableIME.diff'
+        'mingw-imagemagick.diff'
+        'w32-ime.diff'
         )
-sha256sums=('59b55194c9979987c5e9f1a1a4ab5406714e80ffcfd415cc6b9222413bc073fa'
+sha256sums=('253ac5e7075e594549b83fd9ec116a9dc37294d415e2f21f8ee109829307c00b'
             'SKIP'
             '4571d45ec26fd556e73a70bb0ab0a2a8fa1efc5e3b3c5b472ab68bb7dc9bf52c'
             '24b2201aa2e965c759cfc9539aa4b610d97f1d0240d9888e335da490b87b84b5'
@@ -56,13 +56,13 @@ prepare() {
   cd "${_realname}-${pkgver}"
   #patch --binary --forward -p0 < "${srcdir}/image.c.diff"
   patch --binary --forward -p0 < "${srcdir}/lread.c.diff"
-  patch --binary --forward -p0 < "${srcdir}/emacs-25.2-mingw-imagemagick.diff"
-  patch --binary --forward -p0 < "${srcdir}/emacs-25.2-w32-ime.diff"
-  patch --binary --forward -p0 < "${srcdir}/emacs-25.2-image-fit.diff"
-  patch --binary --forward -p0 < "${srcdir}/emacs-25.2-cmigemo.diff"
-  patch --binary --forward -p0 < "${srcdir}/emacs-25.2-cygwin-rsvg.diff"
-  patch --binary --forward -p0 < "${srcdir}/emacs-25.2-disable-w32-ime.diff"
-  patch --binary --forward -p0 < "${srcdir}/emacs-25.2-ImmDisableIME.diff"
+  patch --binary --forward -p0 < "${srcdir}/mingw-imagemagick.diff"
+  patch --binary --forward -p0 < "${srcdir}/w32-ime.diff"
+  patch --binary --forward -p0 < "${srcdir}/image-fit.diff"
+  patch --binary --forward -p0 < "${srcdir}/cmigemo.diff"
+  patch --binary --forward -p0 < "${srcdir}/cygwin-rsvg.diff"
+  patch --binary --forward -p0 < "${srcdir}/disable-w32-ime.diff"
+  patch --binary --forward -p0 < "${srcdir}/ImmDisableIME.diff"
   ./autogen.sh
 }
 

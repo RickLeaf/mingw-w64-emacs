@@ -55,4 +55,21 @@
 It's emacs whith windows IME patch, you can use it generate mingw64 and mingw32 package
 sperate branch 25 for emacs25, master for emacs26
 
+## Usage
+
+1. Install Base Packages
+```shell
+$ pacman -S base-devel mingw-w64-x86_64-toolchain
+```
+
+2. Build from PKGBUILD
+```shell
+$ makepkg-mingw -s --skippgpcheck
+```
+
+3. Install Package
+```shell
+$ pacman -U mingw-w64-x86_64-emacs-26.1-1-any.pkg.tar.xz
+```
+
 [![img](img/ime.png)]
